@@ -175,7 +175,7 @@ class NeutronPluginContrailCoreV2(neutron_plugin_base_v2.NeutronPluginBaseV2,
         response = self._request_api_server(url, data, headers=authn_headers)
         return response
 
-    def _relay_request(self, url_path, data=None):
+    def _relay_request(self, url_path, data=None, headers=None):
         """Send received request to api server."""
 
         url = "http://%s:%s%s" % (cfg.CONF.APISERVER.api_server_ip,
@@ -183,18 +183,24 @@ class NeutronPluginContrailCoreV2(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                   url_path)
 
         return self._request_api_server_authn(
-            url, data=data, headers={'Content-type': 'application/json'})
+            url, data=data, headers=headers)
 
     def _request_backend(self, context, data_dict, obj_name, action):
         context_dict = self._encode_context(context, action, obj_name)
         data = json.dumps({'context': context_dict, 'data': data_dict})
-
+        headers = self.get_headers(context)
         url_path = "%s/%s" % (self.PLUGIN_URL_PREFIX, obj_name)
-        response = self._relay_request(url_path, data=data)
+        response = self._relay_request(url_path, data=data, headers=headers)
         try:
             return response.status_code, response.json()
         except JSONDecodeError:
             return response.status_code, {'message': response.content}
+
+    def get_headers(self, context):
+        headers = {'Content-type': 'application/json'}
+        if context.auth_token:
+            headers['X-AUTH-TOKEN'] = context.auth_token
+        return headers
 
     def _encode_context(self, context, operation, apitype):
         cdict = {'user_id': getattr(context, 'user_id', ''),
@@ -445,6 +451,8 @@ class NeutronPluginContrailCoreV2(neutron_plugin_base_v2.NeutronPluginBaseV2,
         return port_res
 
     def _make_port_dict(self, port):
+        if port:
+            port['binding:vif_type'] = portbindings.VIF_TYPE_VROUTE
         return port
 
     def _get_port(self, context, id, fields=None):
