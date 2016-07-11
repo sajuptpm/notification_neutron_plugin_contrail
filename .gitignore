@@ -1,5 +1,6 @@
 *.pyc
 *~
+*.diff
 .project
 .pydevproject
 ec2_api.egg-info
